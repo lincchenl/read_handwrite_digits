@@ -45,21 +45,31 @@ class BN_layer:
 		self.gamma=np.ones(length,dtype=np.float)
 		self.beta=np.zeros(length,dtype=np.float)
 
+	def __ext(self,input,times):
+		output=np.repeat(input,times).reshape([input.size,times])
+		return output
+
 	def forward(self,x):
+		times=x.shape[1]
 		self.x=x
-		self.x_mean=np.mean(self.x,axis=0)
-		self.x_std=np.var(self.x,axis=0)
-		self.x_norm=(self.x-self.x_mean)/np.sqrt(self.x_std+self.epsilon)
-		self.result=self.x_norm*np.tile(self.gamma,x.shape[1]).reshape(x.shape)
-		self.result+=np.tile(self.beta,x.shape[1]).reshape(x.shape)
+		self.x_mean=np.mean(self.x,axis=1)
+		self.x_std=np.var(self.x,axis=1)
+		self.x_norm=(self.x-self.__ext(self.x_mean,times))/self.__ext(np.sqrt(self.x_std+self.epsilon),times)
+		self.result=self.x_norm*self.__ext(self.gamma,times)
+		self.result+=self.__ext(self.beta,times)
 
 	def backward(self,dout): #dout is the total m output diffs
-		x_mu=self.x-self.x_mean
+		times = self.x.shape[1]
+		x_mu=self.x-self.__ext(self.x_mean,times)
 		std_inv=1./np.sqrt(self.x_std+self.epsilon)
-		self.dx_norm = np.multiply(dout,np.tile(self.gamma,dout.shape[1]).reshape(dout.shape))
-		self.dx_std = np.sum(self.dx_norm * x_mu, axis=0) * -.5 * std_inv ** 3
-		self.dx_mean = np.sum(self.dx_norm * -std_inv, axis=0) + self.dx_std * np.mean(-2. * x_mu, axis=0)
-		self.dx = (self.dx_norm * std_inv) + (self.dx_std * 2 * x_mu / self.batch_cnt) + (self.dx_mean / self.batch_cnt)
+		std_inv_ext=self.__ext(std_inv,times)
+		self.dx_norm = dout*self.__ext(self.gamma,times)
+		self.dx_std = np.sum(self.dx_norm * x_mu, axis=1) * -.5 * std_inv ** 3
+		self.dx_mean = -np.sum(self.dx_norm *std_inv_ext, axis=1)
+		self.dx_mean += self.dx_std * np.mean(-2. * x_mu, axis=1)
+		self.dx = (self.dx_norm * std_inv_ext)
+		self.dx += (self.__ext(self.dx_std * 2,times) * x_mu / self.batch_cnt)
+		self.dx += (self.__ext(self.dx_mean / self.batch_cnt,times))
 		self.dgamma = np.sum(dout * self.x_norm, axis=1)
 		self.dbeta = np.sum(dout, axis=1)
 

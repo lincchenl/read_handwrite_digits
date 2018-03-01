@@ -144,7 +144,7 @@ if __name__ == "__main__":
 							# 全连接
 							dout[:,k].fill(0.)
 							for l in range(my_cnt):
-								dout[:, k] += dout[l,k] * nns[k].locate(j).para[l, :parent_cnt]
+								dout[:, k] += child_dout[l] * nns[k].locate(j).para[l, :parent_cnt]
 						p.bNorm.backward(dout)
 				# 误差统计
 				for k in range(cat):
@@ -155,12 +155,12 @@ if __name__ == "__main__":
 					for k in range(1,nn1.layers):
 						nn1.locate(k).dpara += nns[j].locate(k).dpara / cat
 				# gamma和beta的学习
-				bn1.beta += bn1.dbeta * 0.1
-				bn1.gamma += bn1.dgamma * 0.1
-				bn2.beta += bn2.dbeta * 0.1
-				bn2.gamma += bn2.dgamma * 0.1
-				bn3.beta += bn3.dbeta * 0.1
-				bn3.gamma += bn3.dgamma * 0.1
+				#bn1.beta -= bn1.dbeta * 0.01
+				#bn1.gamma -= bn1.dgamma * 0.01
+				#bn2.beta -= bn2.dbeta * 0.01
+				#bn2.gamma -= bn2.dgamma * 0.01
+				#bn3.beta -= bn3.dbeta * 0.01
+				#bn3.gamma -= bn3.dgamma * 0.01
 				nn1.para_commit(cat, 0.1)
 				res = sum(rs) / cat
 				cnt += 1
