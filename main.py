@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 path_lables = ".\\source\\train-labels.idx1-ubyte"
 path_images = ".\\source\\train-images.idx3-ubyte"
 
-
 # 读取图片文件
 def testndraw(data, nn_object):
 	nn_object.test(data)
@@ -155,12 +154,12 @@ if __name__ == "__main__":
 					for k in range(1,nn1.layers):
 						nn1.locate(k).dpara += nns[j].locate(k).dpara / cat
 				# gamma和beta的学习
-				#bn1.beta -= bn1.dbeta * 0.01
-				#bn1.gamma -= bn1.dgamma * 0.01
-				#bn2.beta -= bn2.dbeta * 0.01
-				#bn2.gamma -= bn2.dgamma * 0.01
-				#bn3.beta -= bn3.dbeta * 0.01
-				#bn3.gamma -= bn3.dgamma * 0.01
+				#bn1.beta += bn1.dbeta * 0.01
+				#bn1.gamma += bn1.dgamma * 0.01
+				#bn2.beta += bn2.dbeta * 0.01
+				#bn2.gamma += bn2.dgamma * 0.01
+				#bn3.beta += bn3.dbeta * 0.01
+				#bn3.gamma += bn3.dgamma * 0.01
 				nn1.para_commit(cat, 0.1)
 				res = sum(rs) / cat
 				cnt += 1
