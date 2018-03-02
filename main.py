@@ -19,13 +19,13 @@ def normflat(data):
 
 # initiate a nn
 def creatnn():
-	nn=mnn.mnn()
-	fc1=mnn.full_connect(28*28,100)
-	fc2=mnn.full_connect(100,100)
-	fc3=mnn.full_connect(100,10)
-	fc1.opti=mnn.adam(0.001)
-	fc2.opti=mnn.adam(0.001)
-	fc3.opti=mnn.adam(0.001)
+	nn= mnn.mnn()
+	fc1= mnn.full_connect(28 * 28, 100)
+	fc2= mnn.full_connect(100, 100)
+	fc3= mnn.full_connect(100, 10)
+	fc1.opti= mnn.adam(0.001)
+	fc2.opti= mnn.adam(0.001)
+	fc3.opti= mnn.adam(0.001)
 	nn.addlayer(fc1)
 	#nn.addlayer(mnn.batch_normalization())
 	nn.addlayer(mnn.active_function(1))
@@ -41,7 +41,7 @@ def creatnn():
 def test_accu(filename, count, datas, results):
 	right = 0
 	wrong = 0
-	nn1=mnn.mnn()
+	nn1= mnn.mnn()
 	nn1=nn1.load(filename)
 	for index in range(count):
 		nn1.input=datas[index,:].reshape([1,28*28])
