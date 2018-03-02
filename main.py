@@ -43,8 +43,8 @@ def test_accu(filename, count, datas, results):
 	nn1=creatnn()
 	nn1=nn1.load_params(filename)
 	for index in range(count):
-		nn1.test(datas[index, :, :])
-		if nn1.tail.data[results[index]] > 0.5:
+		nn1.test(datas[index,:])
+		if nn1.tail.data[results[index]] > 0.5 :
 			right += 1
 		else:
 			wrong += 1
@@ -65,9 +65,9 @@ if __name__ == "__main__":
 	fp_img.resize([fp_cnt, fp_row, fp_col])
 	# 对图片进行预处理
 	print("图片预处理......")
-	img=np.empty((28*28,fp_cnt),dtype=np.float)
+	img=np.empty((fp_cnt,28*28),dtype=np.float)
 	for i in range(fp_cnt):
-		img[:,i]=normflat(fp_img[i,:,:])
+		img[i,:]=normflat(fp_img[i,:,:])
 
 
 	cat = 100
@@ -101,14 +101,14 @@ if __name__ == "__main__":
 				rs.fill(0.)
 				k = 0
 				nns = []
-				result = np.zeros([10,cat],dtype=np.float)
+				result = np.zeros([cat,10],dtype=np.float)
 				for j in sgd:
 					# 新建cat个nn网络
 					nns.append(creatnn())
 					nns[k].copy_para_dnn(nn1)
 					# 准备好cat个输入
-					nns[k].top.set_data(img[:,j])
-					result[fl_idx[j],k] = 1.0
+					nns[k].top.set_data(img[j,:])
+					result[k,fl_idx[j]] = 1.0
 					k = k + 1
 				#开始训练
 				#forward
@@ -116,50 +116,39 @@ if __name__ == "__main__":
 					p=nn1.locate(j)
 					if p.bNorm:
 						#在推进之前计算本层的BN
-						x=np.empty([p.parent.data.size,cat],dtype=np.float)
+						x=np.empty([cat,p.parent.data.size],dtype=np.float)
 						for k in range(cat):
-							x[:,k]=nns[k].locate(j).parent.data.copy()
+							x[k,:]=nns[k].locate(j).parent.data.copy()
 						p.bNorm.forward(x)
 					for k in range(cat):
 						nns[k].locate(j).forward_1step(True,k)
+				#计算误差
+				for k in range(cat):
+					diff=nns[k].tail.data-result[k,:]
+					rs[k]=np.sum(diff**2)/2.
 				#backward
-				for j in range(nn1.layers-1,-1,-1):
+				for j in range(nn1.layers-1,0,-1):
 					p = nn1.locate(j)
 					for k in range(cat):
-						nns[k].locate(j).backward_1step(result[:, k], k)
+						nns[k].locate(j).backward_1step(result[k,:], k)
 					if p.bNorm:
 						# 准备dout
-						my_cnt = p.data.size
-						parent_cnt = p.parent.data.size
-						dout = np.empty([parent_cnt, cat], dtype=np.float)
+						dout = np.empty([cat,nn1.locate(j).diff.size], dtype=np.float)
 						for k in range(cat):
-							child_dout = nns[k].locate(j).diff
-							# dropout
-							if nns[k].locate(j).dOut:
-								child_dout = nns[k].locate(j).dOut.backward(child_dout)
-							# active func
-							if nns[k].locate(j).aFunc:
-								child_dout = nns[k].locate(j).aFunc.backward(child_dout)
-							# 全连接
-							dout[:,k].fill(0.)
-							for l in range(my_cnt):
-								dout[:, k] += child_dout[l] * nns[k].locate(j).para[l, :parent_cnt]
+							dout[k,:]=nns[k].locate(j).diff
 						p.bNorm.backward(dout)
-				# 误差统计
-				for k in range(cat):
-					rs[k]=np.sum(nns[k].tail.diff**2)/2.
 				# 累加结果
 				for j in range(1,nn1.layers):
 					nn1.locate(j).dpara.fill(0.)
 					for k in range(1,nn1.layers):
 						nn1.locate(k).dpara += nns[j].locate(k).dpara / cat
 				# gamma和beta的学习
-				#bn1.beta += bn1.dbeta * 0.01
-				#bn1.gamma += bn1.dgamma * 0.01
-				#bn2.beta += bn2.dbeta * 0.01
-				#bn2.gamma += bn2.dgamma * 0.01
-				#bn3.beta += bn3.dbeta * 0.01
-				#bn3.gamma += bn3.dgamma * 0.01
+				for j in range(1,nn1.layers):
+					bn=nn1.locate(j).bNorm
+					if bn :
+						bn.beta += bn.dbeta
+						bn.gamma += bn.dgamma
+				# 更新全连接层的参数
 				nn1.para_commit(cat, 0.1)
 				res = sum(rs) / cat
 				cnt += 1
@@ -180,14 +169,14 @@ if __name__ == "__main__":
 	# 测试图片预处理
 	img1=np.empty((28*28,fp_cnt),dtype=np.float)
 	for i in range(fp1_cnt):
-		img1[:,i]=normflat(fp1_img[i,:,:])
+		img1[i,:]=normflat(fp1_img[i,:,:])
 
 	print("总测试样本的个数是：", fl1_cnt, "。")
-	print("迭代100次后的准确率是：", test_accu("d:\\paras\\parad100.pkl", fl1_cnt, fp1_img, fl1_idx) * 100, "%  ")
-	print("迭代1000次后的准确率是：", test_accu("d:\\paras\\parad1000.pkl", fl1_cnt, fp1_img, fl1_idx) * 100, "%  ")
-	print("迭代2000次后的准确率是：", test_accu("d:\\paras\\parad2000.pkl", fl1_cnt, fp1_img, fl1_idx) * 100, "%  ")
-	print("迭代5000次后的准确率是：", test_accu("d:\\paras\\parad5000.pkl", fl1_cnt, fp1_img, fl1_idx) * 100, "%  ")
-	print("迭代10000次后的准确率是：", test_accu("d:\\paras\\parad10000.pkl", fl1_cnt, fp1_img, fl1_idx) * 100, "%  ")
+	print("迭代100次后的准确率是：", test_accu("d:\\paras\\parad100.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代1000次后的准确率是：", test_accu("d:\\paras\\parad1000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代2000次后的准确率是：", test_accu("d:\\paras\\parad2000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代5000次后的准确率是：", test_accu("d:\\paras\\parad5000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代10000次后的准确率是：", test_accu("d:\\paras\\parad10000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
 	error = np.load("d:\\paras\\error.npy")
 	plt.figure()
 	plt.subplot(211)

@@ -45,33 +45,26 @@ class BN_layer:
 		self.gamma=np.ones(length,dtype=np.float)
 		self.beta=np.zeros(length,dtype=np.float)
 
-	def __ext(self,input,times):
-		output=np.repeat(input,times).reshape([input.size,times])
-		return output
-
 	def forward(self,x):
-		times=x.shape[1]
 		self.x=x
-		self.x_mean=np.mean(self.x,axis=1)
-		self.x_std=np.var(self.x,axis=1)
-		self.x_norm=(self.x-self.__ext(self.x_mean,times))/self.__ext(np.sqrt(self.x_std+self.epsilon),times)
-		self.result=self.x_norm*self.__ext(self.gamma,times)
-		self.result+=self.__ext(self.beta,times)
+		self.x_mean=np.mean(self.x,axis=0)
+		self.x_std=np.var(self.x,axis=0)
+		self.x_norm=(self.x-self.x_mean)/np.sqrt(self.x_std+self.epsilon)
+		self.result=self.x_norm*self.gamma
+		self.result+=self.beta
 
 	def backward(self,dout): #dout is the total m output diffs
-		times = self.x.shape[1]
-		x_mu=self.x-self.__ext(self.x_mean,times)
+		x_mu=self.x-self.x_mean
 		std_inv=1./np.sqrt(self.x_std+self.epsilon)
-		std_inv_ext=self.__ext(std_inv,times)
-		self.dx_norm = dout*self.__ext(self.gamma,times)
-		self.dx_std = np.sum(self.dx_norm * x_mu, axis=1) * -.5 * std_inv ** 3
-		self.dx_mean = -np.sum(self.dx_norm *std_inv_ext, axis=1)
-		self.dx_mean += self.dx_std * np.mean(-2. * x_mu, axis=1)
-		self.dx = (self.dx_norm * std_inv_ext)
-		self.dx += (self.__ext(self.dx_std * 2,times) * x_mu / self.batch_cnt)
-		self.dx += (self.__ext(self.dx_mean / self.batch_cnt,times))
-		self.dgamma = np.sum(dout * self.x_norm, axis=1)
-		self.dbeta = np.sum(dout, axis=1)
+		self.dx_norm = dout*self.gamma
+		self.dx_std = np.sum(self.dx_norm * x_mu, axis=0) * -.5 * std_inv ** 3
+		self.dx_mean = -np.sum(self.dx_norm *std_inv, axis=0)
+		self.dx_mean += self.dx_std * np.mean(-2. * x_mu, axis=0)
+		self.dx = (self.dx_norm * std_inv)
+		self.dx += (self.dx_std * 2 * x_mu / self.batch_cnt)
+		self.dx += (self.dx_mean / self.batch_cnt)
+		self.dgamma = np.sum(dout * self.x_norm, axis=0)
+		self.dbeta = np.sum(dout, axis=0)
 
 class DO_layer:
 	length = 0
@@ -146,7 +139,6 @@ class nn_layer:
 		self.parent = p
 		self.child = c
 		self.inited = True
-		self.diff = np.empty([self.count], dtype=np.float)
 
 	def __del__(self):
 		self.child = None
@@ -164,7 +156,8 @@ class nn_layer:
 			# 分配空间存储参数
 			self.para = np.empty([self.count, p.count + 1], dtype=np.float)
 			self.dpara = np.empty([self.count, p.count + 1], dtype=np.float)
-			# adam
+			self.diff = np.empty([p.count], dtype=np.float)
+			# adam,以后专门弄一个优化的类来append到一个全连接层上，这样貌似更优雅？？？
 			self.mt = 0.
 			self.vt = 0.
 
@@ -172,40 +165,43 @@ class nn_layer:
 	# forward的时候就是按照这样传递data
 	# backward的时候刚好顺序是相反的，传递的是diff
 	def backward_1step(self, result,BN_No):
-		my_cnt = self.data.size
-		cd=self.child
-		if not cd:
+		if not self.child:
 			# 输出层
-			self.diff = result - self.data
+			base = result - self.data
 		else:
-			# 通过child的diff来求本层的diff
-			child_cnt=cd.diff.size
-			dout=cd.diff
-			# dropout
-			if cd.dOut :
-				dout=cd.dOut.backward(dout)
-			# 激活函数
-			if cd.aFunc:
-				dout=cd.aFunc.backward(dout)
-			self.diff.fill(0.)
-			for j in range(child_cnt):
-				self.diff[:] += dout[j] * cd.para[j, :my_cnt]
-			# Batch Normalization在循环外完成
-			# 计算dpara
-			if cd.bNorm:
-				var_x = cd.bNorm.result[:,BN_No]
+			if self.child.bNorm:
+				base = self.child.bNorm.dx[BN_No,:]
 			else:
-				var_x = self.data
-			cd.dpara[:, my_cnt] = dout
-			for j in range(my_cnt):
-				cd.dpara[:, j] = cd.dpara[:, my_cnt] * var_x[j]
+				base = self.child.diff
+		# 从base回溯到全连接层
+		cnt_low=self.data.size
+		cnt_hi=self.parent.data.size
+		# dropout
+		if self.dOut :
+			base=self.dOut.backward(base)
+		# 激活函数
+		if self.aFunc:
+			base=self.aFunc.backward(base)
+		#全连接层
+		self.diff.fill(0.)
+		for j in range(cnt_low):
+			self.diff[:] += base[j] * self.para[j, :cnt_hi]
+		# Batch Normalization在循环外完成,每一层的diff定义为全连接层之后的dx
+		# 计算本层全连接层的dpara
+		if self.bNorm:
+			var_x = self.bNorm.result[BN_No,:]
+		else:
+			var_x = self.data
+		self.dpara[:, cnt_hi] = base
+		for j in range(cnt_hi):
+			self.dpara[:, j] = self.dpara[:, cnt_hi] * var_x[j]
 
 
 	def forward_1step(self, train,BN_No):
 		parent_cnt = self.parent.data.size
 		# Batch Normalization在循环外完成
-		if self.bNorm:
-			input=self.bNorm.result[:,BN_No]
+		if self.bNorm and train:  #如果是验证模式，则不必经过bn层
+			input=self.bNorm.result[BN_No,:]
 		else :
 			input=self.parent.data
 		# 全连接层
@@ -218,7 +214,7 @@ class nn_layer:
 			if train:
 				result=self.dOut.forward(result)
 			else:
-				result=self.dOut.dp_rate
+				result*=self.dOut.dp_rate
 		self.set_data(result)
 
 	def set_para(self, data):
@@ -298,9 +294,14 @@ class nn:
 		p = self.top.child
 		q = src.top.child
 		while p:
-			p.para = q.para  # 各个计算dpara的子线程都对para只读不写，所以干脆让所有para都指向原始的引用
+			p.para = q.para  # 各个计算dpara的子线程都对para只读不写，所以干脆让所有para都指向原始的引用而不是复制
 			p = p.child
 			q = q.child
+
+	def test(self,data):
+		self.top.set_data(data)
+		for i in range(1,self.layers):
+			self.locate(i).forward_1step(False,0)
 
 	# 消除nn_layer的循环引用使其能够被垃圾回收
 	def __del__(self):
