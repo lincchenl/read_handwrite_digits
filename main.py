@@ -13,7 +13,7 @@ def normflat(data):
 	remap=data.flatten()
 	mean=np.mean(remap)
 	deviation=np.std(remap)
-	remap=(remap-mean)/np.sqrt(deviation+1e-8)
+	remap=(remap-mean)/deviation
 	#remap=remap/255
 	return remap
 
@@ -27,11 +27,13 @@ def creatnn():
 	fc2.opti=mnn.adam(0.001)
 	fc3.opti=mnn.adam(0.001)
 	nn.addlayer(fc1)
-	nn.addlayer(mnn.batch_normalization())
-	nn.addlayer(mnn.active_function(2))
+	#nn.addlayer(mnn.batch_normalization())
+	nn.addlayer(mnn.active_function(1))
+	nn.addlayer(mnn.dropout(0.8))
 	nn.addlayer(fc2)
-	nn.addlayer(mnn.batch_normalization())
-	nn.addlayer(mnn.active_function(2))
+	#nn.addlayer(mnn.batch_normalization())
+	nn.addlayer(mnn.active_function(1))
+	nn.addlayer(mnn.dropout(0.8))
 	nn.addlayer(fc3)
 	nn.addlayer(mnn.active_function(3))
 	return nn

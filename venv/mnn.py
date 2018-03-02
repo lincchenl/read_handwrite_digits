@@ -153,7 +153,7 @@ class dropout(layer):
 		if train:
 			self.dp_array=np.empty(self.input.shape,dtype=np.float)
 			for i in range(self.input.shape[0]):
-				self.dp_array[i,:]=np.random.binomial(1, self.dp_rate, size=self.input.shape[0])
+				self.dp_array[i,:]=np.random.binomial(1, self.dp_rate, size=self.input.shape[1])
 			self.output=self.dp_array*self.input
 		else:
 			self.output=self.input*self.dp_rate
@@ -208,14 +208,14 @@ class batch_normalization(layer):
 			if self.gamma is None:
 				self.gamma = np.ones(self.input.shape[1], dtype=np.float)
 			self.x_mean=np.mean(self.input,axis=0)
-			self.x_std=np.var(self.input,axis=0)
-			self.x_norm=(self.input-self.x_mean)/np.sqrt(self.x_std+self.epsilon)
+			self.x_std=np.std(self.input,axis=0)
+			self.x_norm=(self.input-self.x_mean)/(self.x_std+self.epsilon)
 			self.output=self.x_norm*self.gamma
 			self.output+=self.beta
 			self.running_mean = self.beta1*self.running_mean+(1-self.beta1)*self.x_mean
 			self.running_std = self.beta2*self.running_std+(1-self.beta2)*self.x_std
 		else:
-			x_norm=(self.input-self.running_mean)/np.sqrt(self.running_std+self.epsilon)
+			x_norm=(self.input-self.running_mean)/(self.running_std+self.epsilon)
 			self.output=x_norm*self.gamma+self.beta
 
 	def backward(self,train=True):
