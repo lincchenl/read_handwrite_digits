@@ -23,13 +23,17 @@ class mnn:
 		object.child=None
 	def forward(self,train=True,result=None):
 		p=self.head
+		k=0
 		while p :
 			if p.parent:
 				p.input=p.parent.output
 			else:
 				p.input = self.input
 			p.forward(train)
+			#if isinstance(p,full_connect):
+			#	print ("第",k,"层全连接：",np.average(np.abs(p.para)),np.average(np.abs(p.output)))
 			p=p.child
+			k+=1
 		self.output=self.tail.output
 		if train:
 			self.diff=result-self.output
@@ -176,6 +180,11 @@ class batch_normalization(layer):
 	dx_mean = None
 	dbeta = None
 	dgamma = None
+	#运行时均值和方差
+	beta1 = 0.9
+	beta2 = 0.99
+	running_mean = 0
+	running_std = 0
 
 	def __del__(self):
 		layer.__del__(self)
@@ -203,8 +212,11 @@ class batch_normalization(layer):
 			self.x_norm=(self.input-self.x_mean)/np.sqrt(self.x_std+self.epsilon)
 			self.output=self.x_norm*self.gamma
 			self.output+=self.beta
+			self.running_mean = self.beta1*self.running_mean+(1-self.beta1)*self.x_mean
+			self.running_std = self.beta2*self.running_std+(1-self.beta2)*self.x_std
 		else:
-			self.output=self.input
+			x_norm=(self.input-self.running_mean)/np.sqrt(self.running_std+self.epsilon)
+			self.output=x_norm*self.gamma+self.beta
 
 	def backward(self,train=True):
 		if train:
@@ -225,6 +237,9 @@ class batch_normalization(layer):
 		else:
 			self.dx=None
 			self.dout=None
+			self.dpara=None
+			self.dbeta=None
+			self.dgamma=None
 
 	def update(self,train=True):
 		if train:
@@ -263,10 +278,10 @@ class full_connect(layer):
 				for j in range(self.my_cnt):
 					self.dx[i,:] += self.dout[i,j] * self.para[j, :self.parent_cnt]
 			# 通过dx和input来计算dpara
-			self.dpara[:,:,self.parent_cnt]=self.dout
+			self.dpara[:,:,self.parent_cnt]=self.dout.copy()
 			for i in range(self.parent_cnt):
 				for j in range(cnt):
-					self.dpara[j,:,i] = self.dpara[j,:,self.parent_cnt] * self.input[j,i]
+					self.dpara[j,:,i] = self.dout[j,:] * self.input[j,i]
 		else:
 			self.dx=None
 			self.dout=None
@@ -311,10 +326,10 @@ class adam(optimization):
 		self.vt=None
 	def update(self):
 		if self.mt is None:
-			self.mt=0
+			self.mt=np.zeros(self.input.shape,dtype=np.float)
 		if self.vt is None:
-			self.vt=0
-		gt = self.input
+			self.vt=np.zeros(self.input.shape,dtype=np.float)
+		gt = self.dx
 		alpha = self.ratio
 		self.mt = self.beta1 * self.mt + (1. - self.beta1) * gt
 		self.vt = self.beta2 * self.vt + (1. - self.beta2) * gt ** 2

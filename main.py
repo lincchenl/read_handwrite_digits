@@ -11,10 +11,10 @@ path_images1 = ".\\source\\t10k-images.idx3-ubyte"
 # 对原始图片进行标准化处理
 def normflat(data):
 	remap=data.flatten()
-	#mean=np.mean(remap)
-	#deviation=np.std(remap)
-	#remap=(remap-mean)/np.sqrt(deviation)
-	remap=remap/255
+	mean=np.mean(remap)
+	deviation=np.std(remap)
+	remap=(remap-mean)/np.sqrt(deviation+1e-8)
+	#remap=remap/255
 	return remap
 
 # initiate a nn
@@ -23,15 +23,15 @@ def creatnn():
 	fc1=mnn.full_connect(28*28,100)
 	fc2=mnn.full_connect(100,100)
 	fc3=mnn.full_connect(100,10)
-	fc1.opti=mnn.adam(0.1)
-	fc2.opti=mnn.adam(0.1)
-	fc3.opti=mnn.adam(0.1)
+	fc1.opti=mnn.adam(0.001)
+	fc2.opti=mnn.adam(0.001)
+	fc3.opti=mnn.adam(0.001)
 	nn.addlayer(fc1)
 	nn.addlayer(mnn.batch_normalization())
-	nn.addlayer(mnn.active_function(1))
+	nn.addlayer(mnn.active_function(2))
 	nn.addlayer(fc2)
 	nn.addlayer(mnn.batch_normalization())
-	nn.addlayer(mnn.active_function(1))
+	nn.addlayer(mnn.active_function(2))
 	nn.addlayer(fc3)
 	nn.addlayer(mnn.active_function(3))
 	return nn
@@ -39,11 +39,12 @@ def creatnn():
 def test_accu(filename, count, datas, results):
 	right = 0
 	wrong = 0
-	nn1=mnn.mnn.load(filename)
+	nn1=mnn.mnn()
+	nn1=nn1.load(filename)
 	for index in range(count):
-		nn1.input=datas[index:index,:]
+		nn1.input=datas[index,:].reshape([1,28*28])
 		nn1.forward(False)
-		if nn1.output[results[index]] > 0.5 :
+		if nn1.output[0,results[index]] > 0.5 :
 			right += 1
 		else:
 			wrong += 1
@@ -82,10 +83,10 @@ if __name__ == "__main__":
 	for i in range(fp1_cnt):
 		img1[i,:]=normflat(fp1_img[i,:,:])
 
-	cat = 100
-	group = 10000
-	nn1 = creatnn()
+	cat = 400   #每次mini-batch随机抽取100个样本
+	group = 1000
 	first = True
+	nn1 = creatnn()
 	error = np.zeros(group, dtype=float)
 	rs = np.zeros(cat, dtype=float)
 	if first:
@@ -95,22 +96,20 @@ if __name__ == "__main__":
 			# nn1.clear()
 			if i == 100 - 1:
 				nn1.save("d:\\paras\\parad100.pkl")
+			if i == 200 - 1:
+				nn1.save("d:\\paras\\parad200.pkl")
+			if i == 500 - 1:
+				nn1.save("d:\\paras\\parad500.pkl")
 			if i == 1000 - 1:
 				nn1.save("d:\\paras\\parad1000.pkl")
-			if i == 2000 - 1:
-				nn1.save("d:\\paras\\parad2000.pkl")
-			if i == 5000 - 1:
-				nn1.save("d:\\paras\\parad5000.pkl")
-			if i == 10000 - 1:
-				nn1.save("d:\\paras\\parad10000.pkl")
 
 			sgd = np.random.randint(0, fl_cnt, size=cat)
 			while res > 1e-5 and cnt < 2:
 				k = 0
 				result = np.zeros([cat,10],dtype=np.float)
-				for j in sgd:
-					result[k,fl_idx[j]]=1
-					k+=1
+				one = np.array([range(cat),fl_idx[sgd]])
+				for j in range(cat):
+					result[one[0],one[1]]=1
 				#开始训练
 				nn1.input=img[sgd,:]
 				nn1.forward(True,result)
@@ -127,10 +126,9 @@ if __name__ == "__main__":
 
 	print("总测试样本的个数是：", fl1_cnt, "。")
 	print("迭代100次后的准确率是：", test_accu("d:\\paras\\parad100.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代200次后的准确率是：", test_accu("d:\\paras\\parad200.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
+	print("迭代500次后的准确率是：", test_accu("d:\\paras\\parad500.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
 	print("迭代1000次后的准确率是：", test_accu("d:\\paras\\parad1000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
-	print("迭代2000次后的准确率是：", test_accu("d:\\paras\\parad2000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
-	print("迭代5000次后的准确率是：", test_accu("d:\\paras\\parad5000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
-	print("迭代10000次后的准确率是：", test_accu("d:\\paras\\parad10000.pkl", fl1_cnt, img1, fl1_idx) * 100, "%  ")
 	error = np.load("d:\\paras\\error.npy")
 	plt.figure()
 	plt.subplot(211)
