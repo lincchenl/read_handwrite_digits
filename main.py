@@ -14,7 +14,7 @@ def testndraw(data, nn_object):
 
 # 对原始图片进行标准化处理
 def normflat(data):
-	remap=data.flatten()
+	remap=data.ravel()
 	mean=np.mean(remap)
 	deviation=np.std(remap)
 	remap=(remap-mean)/deviation
@@ -24,15 +24,15 @@ def normflat(data):
 def creatnn():
 	nn_object = dnn.nn(28 * 28)
 	nn_object.addlayer(100)
-	nn_object.locate(1).bNorm=bn1
-	#nn_object.locate(1).dOut=dnn.DO_layer(0.8,100)
-	nn_object.locate(1).aFunc=dnn.AC_func(2) #relu
+	#nn_object.locate(1).bNorm=bn1
+	nn_object.locate(1).dOut=dnn.DO_layer(0.8,100)
+	nn_object.locate(1).aFunc=dnn.AC_func(1) #relu
 	nn_object.addlayer(100)
-	nn_object.locate(2).bNorm=bn2
-	#nn_object.locate(2).dOut=dnn.DO_layer(0.8,100)
-	nn_object.locate(2).aFunc=dnn.AC_func(2) #relu
+	#nn_object.locate(2).bNorm=bn2
+	nn_object.locate(2).dOut=dnn.DO_layer(0.8,100)
+	nn_object.locate(2).aFunc=dnn.AC_func(1) #relu
 	nn_object.addlayer(10)
-	nn_object.locate(3).bNorm=bn3
+	#nn_object.locate(3).bNorm=bn3
 	nn_object.locate(3).aFunc=dnn.AC_func(3) #softmax
 	return nn_object
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
 					nns[k].copy_para_dnn(nn1)
 					# 准备好cat个输入
 					nns[k].top.set_data(img[j,:])
-					result[k,fl_idx[j]] = 1.0
+					result[k,fl_idx[j]] = 1
 					k = k + 1
 				#开始训练
 				#forward
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 	fp1_img = np.asarray(fp1[16:])
 	fp1_img.resize([fp1_cnt, fp1_row, fp1_col])
 	# 测试图片预处理
-	img1=np.empty((28*28,fp_cnt),dtype=np.float)
+	img1=np.empty((fp1_cnt,28*28),dtype=np.float)
 	for i in range(fp1_cnt):
 		img1[i,:]=normflat(fp1_img[i,:,:])
 

@@ -57,7 +57,9 @@ class BN_layer:
 		x_mu=self.x-self.x_mean
 		std_inv=1./np.sqrt(self.x_std+self.epsilon)
 		self.dx_norm = dout*self.gamma
-		self.dx_std = np.sum(self.dx_norm * x_mu, axis=0) * -.5 * std_inv ** 3
+		self.dx_std = np.sum(self.dx_norm * x_mu, axis=0)
+		self.dx_std *= -.5
+		self.dx_std *= std_inv ** 3
 		self.dx_mean = -np.sum(self.dx_norm *std_inv, axis=0)
 		self.dx_mean += self.dx_std * np.mean(-2. * x_mu, axis=0)
 		self.dx = (self.dx_norm * std_inv)
@@ -174,8 +176,8 @@ class nn_layer:
 			else:
 				base = self.child.diff
 		# 从base回溯到全连接层
-		cnt_low=self.data.size
-		cnt_hi=self.parent.data.size
+		cnt_low=self.para.shape[0]
+		cnt_hi=self.para.shape[1]-1
 		# dropout
 		if self.dOut :
 			base=self.dOut.backward(base)
@@ -191,7 +193,7 @@ class nn_layer:
 		if self.bNorm:
 			var_x = self.bNorm.result[BN_No,:]
 		else:
-			var_x = self.data
+			var_x = self.parent.data
 		self.dpara[:, cnt_hi] = base
 		for j in range(cnt_hi):
 			self.dpara[:, j] = self.dpara[:, cnt_hi] * var_x[j]
